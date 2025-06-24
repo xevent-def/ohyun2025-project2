@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<!--
+ * @license
+ * Copyright 2023 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="shortcut icon" type="image/svg+xml" href="favicon.svg" />
+    <title>Generative AI - Chat</title>
+    <link rel="stylesheet" href="cafebot.css">
+  </head>
+  <body>
+    <header>Generative AI - Chat</header>
+    <div class="container">
+      <div id="chat-history"></div>
+    </div>
+    <div class="form-container">
+      <form id="form">
+        <input id="prompt" />
+        <button type="submit">Send</button>
+      </form>
+      <template id="thumb-template">
+        <img class="thumb" />
+      </template>
+    </div>
+    <script type="importmap">
+      {
+        "imports": {
+          "@google/generative-ai": "https://esm.run/@google/generative-ai",
+          "marked": "https://esm.run/marked"
+        }
+      }
+    </script>
+    <script>
+      //************ 여기에 API키를 입력합니다 ************//
+      //************ 여기에 API키를 입력합니다 ************//
+      //************ 여기에 API키를 입력합니다 ************//
+      //************ 여기에 API키를 입력합니다 ************//
+      const MY_API_KEY = "AIzaSyC2QU-s5Nwk8hWQk0OvbaoMD7CBPNET1XU";
+
+      //************ 여기에 내가 원하는 설정을 입력합니다 ************//
+      //************ 여기에 내가 원하는 설정을 입력합니다 ************//
+      //************ 여기에 내가 원하는 설정을 입력합니다 ************//
+      const MY_PROMPT_TEXT = `
+                총기 상점의 판매 품목은
+                글록 17 (권총): 700,000원
+                콜트 M4 (소총): 2,500,000원
+                레밍턴 870 (산탄총): 1,200,000원
+                탄약 (50발): 50,000원
+                조준경: 300,000원
+                이다. 주문을 받아서 계산을 해주는 역할이다.
+                인사, 주문, 계산, 품목 설명만 대답 할 수 있다.
+                주문에 탄약이 포함된 경우에는 총기와 함께 안내한다.
+                품목에 없는 상품은 판매하지 않는다.
+                품목 설명이나 계산을 할때는 마크다운 형식으로 보여줘.
+                다른 대화는 할 수 없다.
+                다른 질문을 추가 할 수 없다.
+              
+            `;
+    </script>
+    <script type="module">
+      import { GoogleGenerativeAI, HarmBlockThreshold } from "@google/generative-ai";
+import { marked } from "marked";
+async function updateUI(resultEl, getResult, streaming) {
+  resultEl.className = "loading";
+  let text = "";
+  try {
+    const result = await getResult();
+
+    if (streaming) {
+      resultEl.innerText = "";
+      for await (const chunk of result.stream) {
+        // Get first candidate's current text chunk
+        const chunkText = chunk.text();
+        text += chunkText;
+        resultEl.innerHTML = marked.parse(text);
+        scrollToDocumentBottom();
+      }
+    } else {
+      const response = await result.response;
+      text = response.text();
+    }
+
+    resultEl.className = ""; // Remove .loading class
+  } catch (err) {
+    text += "\n\n> " + err;
+    resultEl.className = "error";
+  }
+  resultEl.innerHTML = marked.parse(text);
+  scrollToDocumentBottom();
+}
+
+function scrollToDocumentBottom() {
+  const scrollingElement = document.scrollingElement || document.body;
+  scrollingElement.scrollTop = scrollingElement.scrollHeight;
+}
+
+async function getGenerativeModel(params) {
+  const API_KEY = MY_API_KEY;
+  const safetyConfig = {
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  };
+  const genAI = new GoogleGenerativeAI(API_KEY);
+  return genAI.getGenerativeModel(params, safetyConfig);
+}
+
+const promptInput = document.querySelector("#prompt");
+const historyElement = document.querySelector("#chat-history");
+let chat;
+
+document.querySelector("#form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  if (!chat) {
+    const model = await getGenerativeModel({ model: "gemini-pro" });
+    chat = model.startChat({
+      history: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: MY_PROMPT_TEXT,
+            },
+          ],
+        },
+        {
+          role: "model",
+          parts: [{ text: "네" }],
+        },
+      ],
+      generationConfig: {
+        maxOutputTokens: 500,
+      },
+    });
+  }
+
+  const userMessage = promptInput.value;
+  promptInput.value = "";
+
+  // Create UI for the new user / assistant messages pair
+  historyElement.innerHTML += `<div class="history-item user-role">
+      <div class="name">User</div>
+      <blockquote>${userMessage}</blockquote>
+    </div>
+    <div class="history-item model-role">
+      <div class="name">Model</div>
+      <blockquote></blockquote>
+    </div>`;
+
+  scrollToDocumentBottom();
+  const resultEls = document.querySelectorAll(".model-role > blockquote");
+  await updateUI(
+    resultEls[resultEls.length - 1],
+    () => chat.sendMessageStream(userMessage),
+    true
+  );
+});
+
+    </script>
+  </body>
+</html>
